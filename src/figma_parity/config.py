@@ -96,4 +96,46 @@ class Settings:
         )
 
 
+# Environment variables that redirect the Agent SDK away from the Anthropic API
+# or away from OUR key. The SDK spawns the Claude Code CLI and inherits the whole
+# environment (`inherited_env = {k: v for k, v in os.environ.items()
+# if k != "CLAUDECODE"}` in subprocess_cli.py), so anything set in the shell that
+# launched this service is silently adopted by the agent.
+#
+# This bit us for real: a Claude Code session exports
+# ANTHROPIC_BASE_URL=http://127.0.0.1:1337 and ANTHROPIC_AUTH_TOKEN. The SDK
+# inherited both, tried the dead local proxy, and failed with "Connection
+# refused" — never reaching the configured key at all.
+#
+# The connection error was the lucky outcome. Had that proxy been running, the
+# run would have succeeded against the WRONG endpoint and billed the WRONG
+# credential, with nothing in the output to say so. Auth precedence puts
+# ANTHROPIC_AUTH_TOKEN ahead of ANTHROPIC_API_KEY, and an empty value still
+# counts as set — so these must be REMOVED, not blanked.
+_HIJACKING_VARS = (
+    "ANTHROPIC_BASE_URL",
+    "ANTHROPIC_AUTH_TOKEN",
+    "CLAUDE_CODE_OAUTH_TOKEN",
+    # Alias redirection: these remap "opus"/"sonnet"/"haiku" to other models.
+    # Removed so the configured model string means exactly what it says.
+    "ANTHROPIC_DEFAULT_OPUS_MODEL",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+)
+
+
+def isolate_anthropic_env(cfg: "Settings") -> list[str]:
+    """Strip inherited Anthropic routing/credential vars and pin our own key.
+
+    Call this before constructing a ClaudeSDKClient. Returns the names that were
+    actually removed so the caller can log them — a silent fix here would hide
+    the fact that the ambient environment was trying to redirect the run.
+    """
+    removed = [k for k in _HIJACKING_VARS if k in os.environ]
+    for key in removed:
+        os.environ.pop(key, None)
+    os.environ["ANTHROPIC_API_KEY"] = cfg.require_api_key()
+    return removed
+
+
 settings = Settings()

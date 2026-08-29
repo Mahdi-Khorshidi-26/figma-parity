@@ -51,10 +51,12 @@ An honest *"8 of 213 rows unresolved, here they are"* is a success. A false
 
 ## Install
 
-### As a Claude Code plugin — no server, no API key
+> **No Anthropic API key required.** The plugin runs on whatever Claude
+> subscription you already have. There is no account to create, no key to
+> paste, and nothing bills to the author. The optional Python service further
+> down is a separate, headless path — ignore it unless you want one.
 
-This is all most people need. The skill, the slash command, and the auditor
-subagent work inside Claude Code on your existing subscription.
+### 1. Add the marketplace and install
 
 ```
 /plugin marketplace add Mahdi-Khorshidi-26/figma-parity
@@ -63,33 +65,40 @@ subagent work inside Claude Code on your existing subscription.
 /plugin install figma-parity@figma-parity
 ```
 
-Then:
+Restart Claude Code, then:
 
 ```
 /figma-parity https://www.figma.com/design/KEY/File?node-id=1-2
 ```
 
-Requires the [Figma MCP server](https://developers.figma.com/docs/figma-mcp-server/)
-(the official `figma` plugin) for design access, and any browser MCP for the
-render-and-diff step. Without a browser it still runs in **ledger-only mode** —
-complete extraction and per-property implementation, minus the pixel
-measurement. It will tell you when it does this rather than pretending.
+That's it. The skill, the slash command, and the auditor subagent are all
+active.
 
-For the pixel diff you also need Python with `pillow` and `numpy`:
+### 2. What it needs from you
+
+| Requirement | Why | Without it |
+|---|---|---|
+| **Figma MCP** — the official `figma` plugin, signed in to your Figma account | reads the design | nothing works |
+| **Python 3.10+** with `pillow` and `numpy` | the pixel diff | falls back to ledger-only |
+| **A browser MCP** (e.g. `playwright`) | screenshots your built UI | falls back to ledger-only |
 
 ```bash
 pip install pillow numpy
 ```
 
-### As a headless service — your own API key
+**Ledger-only mode** still walks the whole tree, records every property, and
+implements against that list — you lose the pixel measurement, not the
+thoroughness. It tells you when it degrades rather than pretending.
 
-Runs the same loop over HTTP on the Claude Agent SDK, for automation rather
-than interactive use.
+### Optional: the headless service
+
+Only if you want to drive this from automation rather than interactively. This
+path *does* need an Anthropic API key, because it runs the agent itself via the
+Claude Agent SDK instead of using your Claude Code session.
 
 ```bash
 git clone https://github.com/Mahdi-Khorshidi-26/figma-parity
-cd figma-parity
-python3 -m pip install -e .
+cd figma-parity && python3 -m pip install -e .
 cp .env.example .env       # add ANTHROPIC_API_KEY and FIGMA_PARITY_ALLOWED_ROOTS
 PYTHONPATH=src python3 -m figma_parity.server
 ```
@@ -111,6 +120,11 @@ curl -X POST localhost:8787/runs -H 'content-type: application/json' \
 > runs an agent with file-write and shell access. `FIGMA_PARITY_ALLOWED_ROOTS`
 > restricts which directories it may touch and **refuses everything when
 > empty**. If you change the bind address, add authentication first.
+>
+> It also strips inherited `ANTHROPIC_BASE_URL` / `ANTHROPIC_AUTH_TOKEN` from
+> the environment before starting the agent. The Agent SDK inherits the whole
+> environment, so without this a stray proxy or token in your shell silently
+> redirects the run to the wrong endpoint on the wrong credential.
 
 ---
 

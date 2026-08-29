@@ -23,7 +23,7 @@ from claude_agent_sdk import (
     ToolUseBlock,
 )
 
-from .config import Settings, settings as default_settings
+from .config import Settings, isolate_anthropic_env, settings as default_settings
 from .ledger import LedgerSummary, summarize
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -145,6 +145,9 @@ async def run_parity(
 ) -> RunResult:
     cfg = cfg or default_settings
     cfg.require_api_key()
+    # Must happen before the client is constructed — the SDK snapshots the
+    # environment when it spawns the CLI.
+    hijacked = isolate_anthropic_env(cfg)
 
     result = RunResult(figma_url=figma_url, project_path=project_path)
 
@@ -164,6 +167,12 @@ async def run_parity(
         max_iterations=cfg.max_iterations,
     )
 
+    if hijacked:
+        await emit({
+            "type": "status",
+            "text": "removed inherited env that would have redirected this run: "
+                    + ", ".join(hijacked),
+        })
     await emit({"type": "status", "text": f"starting · {figma_url}"})
 
     try:
