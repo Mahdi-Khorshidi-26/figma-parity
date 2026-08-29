@@ -6,7 +6,6 @@ __pycache__/
 .DS_Store
 .remember/
 .claude/settings.local.json
-evals/results/*.json
 *.egg-info/
 build/
 dist/

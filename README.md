@@ -71,10 +71,9 @@ commits. Nothing is written outside that folder.
 the whole list - no analytics, no telemetry, nothing reported back to this repo.
 
 **Nothing from anyone else's runs ships here.** No screenshots, no sample
-ledgers, no Figma file keys. `evals/cases.json` holds placeholders only - you
-fill in links to designs you own, and results land in `evals/results/`, which is
-gitignored. A Figma file key names a real, often client-owned document, so none
-belongs in a shared repo.
+ledgers, no Figma file keys — a file key names a real, often client-owned
+document, so none belongs in a shared repo. Your extractions stay in your own
+project's `.figma-parity/`, which the skill gitignores before writing to it.
 
 The browser MCP is **deliberately not bundled**. Shipping it would silently
 register a server that downloads and executes code from npm on your machine the
@@ -88,10 +87,9 @@ add it yourself:
 
 ## Install
 
-> **No Anthropic API key required.** The plugin runs on whatever Claude
-> subscription you already have. There is no account to create, no key to
-> paste, and nothing bills to the author. The optional Python service further
-> down is a separate, headless path — ignore it unless you want one.
+> **No Anthropic API key required.** It runs on whatever Claude subscription
+> you already have. There is no account to create, no key to paste, and nothing
+> bills to the author.
 
 ### 1. Add the marketplace and install
 
@@ -153,42 +151,6 @@ pip install pillow numpy
 implements against that list — you lose the pixel measurement, not the
 thoroughness. It tells you when it degrades rather than pretending.
 
-### Optional: the headless service
-
-Only if you want to drive this from automation rather than interactively. This
-path *does* need an Anthropic API key, because it runs the agent itself via the
-Claude Agent SDK instead of using your Claude Code session.
-
-```bash
-git clone https://github.com/Mahdi-Khorshidi-26/figma-parity
-cd figma-parity && python3 -m pip install -e .
-cp .env.example .env       # add ANTHROPIC_API_KEY and FIGMA_PARITY_ALLOWED_ROOTS
-PYTHONPATH=src python3 -m figma_parity.server
-```
-
-```bash
-curl -X POST localhost:8787/runs -H 'content-type: application/json' \
-  -d '{"figma_url":"https://www.figma.com/design/KEY/File?node-id=1-2","project_path":"/path/to/app"}'
-```
-
-| Endpoint | |
-|---|---|
-| `GET /health` | config check |
-| `POST /runs` | `{figma_url, project_path}` → `{run_id}` |
-| `GET /runs/{id}` | status, verdict, ledger counts, cost |
-| `GET /runs/{id}/events` | SSE progress stream (replays from the start) |
-
-> **Security.** The server binds `127.0.0.1` and has no authentication. That's
-> safe only because nothing off-machine can reach it — it holds an API key and
-> runs an agent with file-write and shell access. `FIGMA_PARITY_ALLOWED_ROOTS`
-> restricts which directories it may touch and **refuses everything when
-> empty**. If you change the bind address, add authentication first.
->
-> It also strips inherited `ANTHROPIC_BASE_URL` / `ANTHROPIC_AUTH_TOKEN` from
-> the environment before starting the agent. The Agent SDK inherits the whole
-> environment, so without this a stray proxy or token in your shell silently
-> redirects the run to the wrong endpoint on the wrong credential.
-
 ---
 
 ## Tuning
@@ -213,14 +175,10 @@ and re-measure.
 ## Development
 
 ```bash
-PYTHONPATH=src python3 tests/test_diff.py
-PYTHONPATH=src python3 tests/test_ledger.py
-PYTHONPATH=src python3 tests/test_config.py
+for t in tests/*.py; do PYTHONPATH=src python3 "$t"; done
 ```
 
-Plain asserts, no framework. `evals/run_evals.py` measures extraction coverage
-across a set of real Figma links — the number that catches "it looked finished
-but only walked half the tree".
+Plain asserts, no framework — each file also runs on its own.
 
 `skills/` and `agents/` are the real directories (plugin layout);
 `.claude/skills` and `.claude/agents` are symlinks so Claude Code sees them

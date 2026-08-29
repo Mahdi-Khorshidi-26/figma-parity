@@ -38,47 +38,52 @@ Each countermeasure targets one cause:
 
 ### The one rule that matters most
 
-**The model never decides it is finished.** `runner.evaluate_gate()` reads the
-ledger off disk and computes completeness itself. A confident final message
-from the agent has no effect on the verdict. If you change one thing in this
-codebase, do not change that.
+**The model never decides it is finished.** `ledger.summarize()` reads the
+ledger off disk and `tree.py` counts the design's nodes independently, so both
+halves of the verdict are computed from files rather than taken from the
+agent's word. A confident final message has no effect on the outcome. If you
+change one thing in this codebase, do not change that.
+
+The corollary is easy to lose: **any number the gate consumes must come from
+the design or the filesystem, never from prose the model wrote.** Coverage was
+once read from a `Coverage: nodes N/M` line the model authored about itself —
+that is the exact mistake to avoid re-introducing.
 
 ---
 
 ## Architecture
 
+There is no service. This is a Claude Code plugin: the skill drives the loop,
+and three small Python modules hold the parts a model must not be trusted with.
+
 ```
-POST /runs {figma_url, project_path}
+/figma-parity <url>   in the user's own project
       │
       ▼
-  server.py ──── validates project_path against the allowlist   ← trust boundary
+  SKILL.md ── Phase 0 classify · 1 descend · 2 implement · 3 diff · 4 audit · 5 loop
       │
-      ▼
-  runner.py ──── ClaudeSDKClient(
-      │              cwd = target project,
-      │              plugins = [this repo, loaded as a local plugin],
-      │              mcp_servers = figma + playwright,
-      │              permission_mode = "acceptEdits",
-      │              model = claude-opus-5, effort = xhigh,
-      │              max_budget_usd = hard spend cap)
-      │
-      ├── streams events ──► GET /runs/{id}/events  (SSE)
-      │
-      └── THE GATE (Python, not the model):
-             ledger.complete  AND  no error
+      ├── scripts/parity.py classify   → tree.py    what kind of node is this?
+      ├── scripts/parity.py diff       → diff.py    two PNGs -> regions + heatmap
+      └── scripts/parity.py coverage   → ledger.py  THE GATE
+                                          + tree.py  coverage derived from the
+                                                     design, not self-reported
 ```
 
-### Why this repo is loaded as a *plugin*
+Everything runs in the user's project directory. Nothing is written outside
+their `.figma-parity/`, and nothing needs an API key.
 
-The agent's `cwd` is the **target project**, so `setting_sources=["project"]`
-would read that project's `.claude/`, not ours — the skill would never load.
-`plugins=[{"type": "local", "path": REPO_ROOT}]` makes the skill and the
-auditor available regardless of `cwd`.
+### Why the commands use `${CLAUDE_PLUGIN_ROOT}`
 
-That is why `skills/` and `agents/` sit at the repo root (plugin layout) with
+The skill executes inside the **user's** project, not this repo, so a relative
+`src/` path or `python -m figma_parity...` resolves to nothing. Every runnable
+command must be an absolute path under `${CLAUDE_PLUGIN_ROOT}`, which Claude
+Code sets to this plugin's directory. `scripts/parity.py` puts its own `src/`
+on `sys.path`, so it works from any cwd.
+
+`skills/` and `agents/` sit at the repo root (plugin layout) with
 `.claude/skills` and `.claude/agents` as **symlinks** back to them. One copy,
-two consumers: Claude Code reads the symlinks while you develop here; the Agent
-SDK reads the plugin at runtime. Edit the real directories, never the symlinks.
+two consumers: Claude Code reads the symlinks while you develop here, and the
+plugin loader reads the real directories when installed. Edit the real ones.
 
 ---
 
@@ -92,23 +97,18 @@ skills/figma-parity/
   SKILL.md                     the 5-phase workflow — the actual product
   references/rendering.md      per-stack render + screenshot recipes
 agents/figma-parity-auditor.md independent auditor subagent
-scripts/parity.py              THE CLI the skill calls, via ${CLAUDE_PLUGIN_ROOT}
+scripts/parity.py              the CLI the skill calls, via ${CLAUDE_PLUGIN_ROOT}
 src/figma_parity/
   tree.py                      parses the design tree — derives coverage
   ledger.py                    parses ledger.md — enforces the gate
   diff.py                      two PNGs -> % diff, regions, heatmap
-  config.py   ┐                env, path allowlist, tunable knobs
-  runner.py   ├ server only    Agent SDK orchestration
-  server.py   ┘                FastAPI: /health, /runs, SSE events
-evals/                         server only: coverage measurement over real links
 tests/                         plain-assert tests, no framework
 ```
 
-**Two paths live here.** The plugin (skill + agent + command + `parity.py` +
-`tree`/`ledger`/`diff`) needs no API key and no server — that is what people
-install. The `[server]` extra (`config`/`runner`/`server`/`evals`) is the
-headless HTTP path and needs an Anthropic key. Keep them separable: nothing on
-the plugin path may import from the server path.
+That is the whole thing. `classify` and `coverage` are stdlib-only; only the
+pixel diff pulls in pillow and numpy. **Keep it that way** — a design plugin
+that makes people install a web server to compare two PNGs invites exactly the
+suspicion this project should not attract.
 
 Per-run artifacts are written into the **target** project at `.figma-parity/`:
 `ledger.md`, `tree.xml`, `figma/`, `render/`, `diff/`.
@@ -155,23 +155,21 @@ with coordinates and a heatmap. The percentage is only the gate.
 
 ## Security
 
-- **The server binds `127.0.0.1` and has no authentication.** That is safe only
-  because nothing off-machine can reach it. It holds an API key and runs an
-  agent with `acceptEdits` and `Bash`. **If you ever change the bind address,
-  add authentication first.**
-- **`FIGMA_PARITY_ALLOWED_ROOTS` is the trust boundary.** `project_path`
-  arrives over HTTP. `config.validate_project_path()` resolves it (collapsing
-  `..` and symlinks) and refuses anything outside the allowlist. An empty
-  allowlist refuses everything — fail closed, deliberately.
-- **`.env` is gitignored.** Never commit a key.
+- **No elevated permissions, ever.** Nothing here should need Full Disk
+  Access, accessibility access, or admin rights. A change that would is the
+  wrong change.
+- **No network beyond Figma and Claude.** The official Figma MCP endpoint reads
+  the design; Claude does the work. No analytics, no telemetry, nothing
+  reported back to this repo.
+- **Write only inside the user's `.figma-parity/`**, and gitignore it before
+  writing. Their extractions are theirs.
 
 ---
 
 ## Privacy rules for this repo
 
 - **No real Figma file keys, ever.** A key names a real, often client-owned
-  document. `evals/cases.json` ships placeholders; contributors fill in their
-  own links locally. `evals/results/` is gitignored.
+  document. Test against your own designs locally and commit none of it.
 - **No run artifacts.** No screenshots, ledgers, renders or diffs from anyone's
   runs get committed here. They live in the user's own `.figma-parity/`.
 - **No bundled code-executing MCP servers.** `.mcp.json` declares the official
@@ -183,10 +181,6 @@ with coordinates and a heatmap. The percentage is only the gate.
 
 ## Gotchas
 
-- **The Agent SDK does not read `.env`.** It reads the *process* environment.
-  `config.py` calls `load_dotenv()` at import, which is what makes the key
-  visible. Removing that line produces an auth error that looks like a bad key
-  rather than a missing one.
 - **`.claude/skills` and `.claude/agents` are symlinks.** Edit `skills/` and
   `agents/` at the repo root.
 - **Never let a `get_design_context` call run on a screen root.** That is where
@@ -198,19 +192,13 @@ with coordinates and a heatmap. The percentage is only the gate.
 ## Commands
 
 ```bash
-python3 -m pip install -e .          # install deps
-cp .env.example .env                 # then fill in ANTHROPIC_API_KEY
-PYTHONPATH=src python3 -m figma_parity.server    # serve on 127.0.0.1:8787
+pip install pillow numpy             # only the pixel diff needs these
 ```
 
 ```bash
-PYTHONPATH=src python3 tests/test_diff.py && PYTHONPATH=src python3 tests/test_ledger.py && PYTHONPATH=src python3 tests/test_config.py
+for t in tests/*.py; do PYTHONPATH=src python3 "$t"; done
 ```
 
-```bash
-curl -X POST localhost:8787/runs -H 'content-type: application/json' \
-  -d '{"figma_url":"https://www.figma.com/design/KEY/FAQ?node-id=1-2","project_path":"/path/to/project"}'
-```
 
 ---
 
@@ -218,9 +206,7 @@ curl -X POST localhost:8787/runs -H 'content-type: application/json' \
 
 | What | Where |
 |---|---|
-| Agent SDK Python reference | https://code.claude.com/docs/en/agent-sdk/python |
-| Agent SDK subagents | https://code.claude.com/docs/en/agent-sdk/subagents |
-| Agent SDK plugins | https://code.claude.com/docs/en/agent-sdk/plugins |
+| Claude Code plugins | https://code.claude.com/docs/en/plugins |
 | Figma MCP server docs | https://developers.figma.com/docs/figma-mcp-server/ |
 | Bundled `figma-design-to-code` skill (Phase 2 delegates to it) | `~/.claude/plugins/cache/claude-plugins-official/figma/2.2.81/skills/figma-design-to-code/SKILL.md` |
 | Figma MCP tool set | `mcp__plugin_figma_figma__*` — `get_metadata`, `get_design_context`, `get_screenshot`, `get_variable_defs` |
