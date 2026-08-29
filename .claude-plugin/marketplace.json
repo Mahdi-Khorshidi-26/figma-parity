@@ -1,7 +1,10 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "figma-parity",
-  "description": "Figma-to-code that proves it matches instead of asserting it does.",
+  "metadata": {
+    "description": "Figma-to-code that proves it matches instead of asserting it does.",
+    "version": "0.1.0"
+  },
   "owner": {
     "name": "Mahdi Khorshidi",
     "url": "https://github.com/Mahdi-Khorshidi-26"
@@ -12,10 +15,13 @@
       "description": "Implements Figma designs as code with a verified parity loop: recursive descent to every leaf node, a ledger of every property, render-and-pixel-diff against the design, and an independent auditor subagent.",
       "source": "./",
       "category": "development",
-      "tags": ["figma", "design-to-code", "ui", "pixel-perfect", "verification"],
-      "commands": "commands/",
-      "skills": "skills/",
-      "agents": "agents/"
+      "tags": [
+        "figma",
+        "design-to-code",
+        "ui",
+        "pixel-perfect",
+        "verification"
+      ]
     }
   ]
 }
