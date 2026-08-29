@@ -46,9 +46,16 @@ anything. This is a connectivity check only.
 
 
 async def main() -> int:
-    url = sys.argv[1] if len(sys.argv) > 1 else (
-        "https://www.figma.com/design/Jk3V1bpN1jEJMkCRAPLK2h/FAQ?node-id=4-1911&m=dev"
-    )
+    if len(sys.argv) < 2:
+        print(
+            "usage: python3 scripts/check_figma_mcp.py <figma-url>\n\n"
+            "Pass a link to a design YOU can open — ideally a small component, so the\n"
+            "check costs almost nothing. No URL is hardcoded here on purpose: a Figma\n"
+            "file key identifies a real document and does not belong in this repo.",
+            file=sys.stderr,
+        )
+        return 2
+    url = sys.argv[1]
     settings.require_api_key()
     hijacked = isolate_anthropic_env(settings)
     if hijacked:

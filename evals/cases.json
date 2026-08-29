@@ -1,26 +1,31 @@
 {
-  "_comment": "Eval cases for the parity loop. The question these answer is not 'did it look right' but 'did it find everything'. Fill expected_min_nodes from Figma's own layer tree once known — a case with null is recorded but not asserted.",
+  "_comment": [
+    "Eval cases for the parity loop. These are YOUR links, kept on YOUR machine.",
+    "This file ships with placeholders only \u2014 no real file keys are committed here,",
+    "and none should be added. A Figma file key identifies a real (often client)",
+    "document; putting one in a public repo discloses that the file exists, what it",
+    "is called, and how it is structured.",
+    "",
+    "Fill in figma_url with links to designs you own, then run:",
+    "  PYTHONPATH=src python3 evals/run_evals.py --project /path/to/scratch/app",
+    "",
+    "Results are written to evals/results/, which is gitignored. Nothing from your",
+    "runs is ever committed."
+  ],
   "cases": [
     {
-      "id": "moes-faq-page",
-      "note": "Page node. Holds three sibling frames (Large/Medium/Small) — responsive variants of one page, not three pages.",
-      "figma_url": "https://www.figma.com/design/Jk3V1bpN1jEJMkCRAPLK2h/FAQ?node-id=0-1&m=dev",
+      "id": "example-screen",
+      "note": "A viewport-width screen. The normal case, and the one that exercises the pixel diff.",
+      "figma_url": "https://www.figma.com/design/YOUR_FILE_KEY/Your-File?node-id=1-2",
       "expected_min_nodes": null,
-      "expects_breakpoints": ["Large", "Medium", "Small"]
+      "expects_breakpoints": []
     },
     {
-      "id": "moes-faq-canvas",
-      "note": "Canvas/frame node. The historically lossy case — a single get_design_context here truncates.",
-      "figma_url": "https://www.figma.com/design/Jk3V1bpN1jEJMkCRAPLK2h/FAQ?node-id=1-2&m=dev",
+      "id": "example-component",
+      "note": "A single deep component. Cheapest case to verify MCP reachability.",
+      "figma_url": "https://www.figma.com/design/YOUR_FILE_KEY/Your-File?node-id=10-20",
       "expected_min_nodes": null,
-      "expects_components": ["Menu / Desktop Header", "Question", "Contact Block"]
-    },
-    {
-      "id": "moes-faq-question-component",
-      "note": "Deep component node (~7 levels down, ~625 tokens). Baseline: this one already works by hand, so the loop must not regress it.",
-      "figma_url": "https://www.figma.com/design/Jk3V1bpN1jEJMkCRAPLK2h/FAQ?node-id=4-1911&m=dev",
-      "expected_min_nodes": null,
-      "expects_components": ["Question"]
+      "expects_components": []
     }
   ]
 }

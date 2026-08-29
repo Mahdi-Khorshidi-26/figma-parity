@@ -17,8 +17,16 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import numpy as np
-from PIL import Image, ImageDraw
+try:
+    import numpy as np
+    from PIL import Image, ImageDraw
+except ModuleNotFoundError as exc:  # optional: only the pixel diff needs these
+    raise SystemExit(
+        f"figma-parity: the pixel diff needs {exc.name}.\n"
+        f"  pip install pillow numpy\n"
+        f"Everything else - tree walk, ledger, completion gate - works without "
+        f"it; the skill falls back to ledger-only mode and says so."
+    ) from exc
 
 # --- Calibration knobs -------------------------------------------------------
 # ponytail: these are knobs, not constants. Figma's rasterizer and a browser's

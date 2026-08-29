@@ -15,6 +15,8 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .tree import Tree, ledger_node_ids, parse as parse_tree
+
 TODO = "☐"      # ☐ not yet implemented
 DONE = "☑"      # ☑ implemented and verified
 DEVIATION = "⚠"  # ⚠ deliberate deviation — REASON REQUIRED
@@ -44,6 +46,10 @@ class LedgerSummary:
     nodes_extracted: int = 0
     nodes_total: int = 0
     exists: bool = True
+    # Derived from the saved design tree, NOT from anything the model wrote.
+    # When these are set they override the self-reported numbers above.
+    derived_covered: int | None = None
+    derived_total: int | None = None
 
     def _count(self, status: str) -> int:
         return sum(1 for r in self.rows if r.status == status)
@@ -93,8 +99,27 @@ class LedgerSummary:
         return self.todo + len(self.unjustified)
 
     @property
+    def coverage_derived(self) -> bool:
+        """True when coverage came from the design tree rather than the model."""
+        return self.derived_total is not None and self.derived_total > 0
+
+    @property
+    def overclaimed(self) -> bool:
+        """The model claimed more coverage than the tree actually supports.
+
+        This is the tell that a run wrote a flattering Coverage line. It is a
+        hard failure, not a rounding difference.
+        """
+        if not self.coverage_derived or self.nodes_extracted <= 0:
+            return False
+        return self.nodes_extracted > (self.derived_covered or 0)
+
+    @property
     def coverage_complete(self) -> bool:
-        # An unstated coverage line is not proof of coverage.
+        # Prefer the number Python derived from the design over the one the
+        # model wrote about itself. An unstated coverage line is not proof.
+        if self.coverage_derived:
+            return not self.overclaimed and (self.derived_covered or 0) >= (self.derived_total or 0)
         return self.nodes_total > 0 and self.nodes_extracted >= self.nodes_total
 
     @property
@@ -113,9 +138,25 @@ class LedgerSummary:
         lines = [
             f"{verdict}  {self.total} rows: {self.done} done · {self.todo} todo · "
             f"{self.deviations} deviation · {self.blocked} blocked",
-            f"  coverage: nodes {self.nodes_extracted}/{self.nodes_total}"
-            + ("" if self.coverage_complete else "  ← INCOMPLETE TRAVERSAL"),
         ]
+        if self.coverage_derived:
+            lines.append(
+                f"  coverage: nodes {self.derived_covered}/{self.derived_total} "
+                f"(derived from the design tree, not self-reported)"
+                + ("" if self.coverage_complete else "  ← INCOMPLETE TRAVERSAL")
+            )
+            if self.overclaimed:
+                lines.append(
+                    f"  ! OVERCLAIMED: the ledger says {self.nodes_extracted} nodes but its node "
+                    f"ids only account for {self.derived_covered}. The Coverage line is not "
+                    f"evidence — the node ids in the rows are."
+                )
+        else:
+            lines.append(
+                f"  coverage: nodes {self.nodes_extracted}/{self.nodes_total} (SELF-REPORTED — "
+                f"save get_metadata to .figma-parity/tree.xml to have this derived instead)"
+                + ("" if self.coverage_complete else "  ← INCOMPLETE TRAVERSAL")
+            )
         if self.unjustified:
             lines.append(f"  {len(self.unjustified)} deviation/blocked row(s) with no reason given:")
             for r in self.unjustified[:10]:
@@ -127,14 +168,28 @@ class LedgerSummary:
         return "\n".join(lines)
 
 
-def summarize(path: str | Path) -> LedgerSummary:
-    """Read a ledger.md and report whether the run may honestly be called done."""
+def summarize(path: str | Path, tree_path: str | Path | None = None) -> LedgerSummary:
+    """Read a ledger.md and report whether the run may honestly be called done.
+
+    When the raw get_metadata response has been saved (default:
+    `<ledger dir>/tree.xml`), coverage is computed from that file and the node
+    ids appearing in the ledger — so the model cannot inflate its own score.
+    """
     p = Path(path)
     if not p.exists():
         return LedgerSummary(path=p, exists=False)
 
+    text = p.read_text(encoding="utf-8")
     summary = LedgerSummary(path=p)
-    for line_no, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1):
+
+    tree_file = Path(tree_path) if tree_path else p.parent / "tree.xml"
+    if tree_file.exists():
+        tree: Tree = parse_tree(tree_file)
+        if tree.total:
+            summary.derived_total = tree.total
+            summary.derived_covered = len(tree.covered_by(ledger_node_ids(text)))
+
+    for line_no, line in enumerate(text.splitlines(), 1):
         stripped = line.strip()
 
         if summary.nodes_total == 0 and "nodes" in stripped.lower():

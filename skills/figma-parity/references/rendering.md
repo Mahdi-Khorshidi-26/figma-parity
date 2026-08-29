@@ -42,8 +42,14 @@ Probe the target project in this order and stop at the first match.
 }
 ```
 
-Playwright MCP is declared in `.mcp.json`, so both Claude Code and the Agent SDK
-have browser tools available. Save output to `.figma-parity/render/<node>.png`.
+**A browser MCP is not bundled with this skill, by design** — shipping one
+would silently register a server that downloads and runs code from npm on the
+user's machine. Use whatever browser tooling the user already has. If none is
+available, say so and continue in ledger-only mode rather than installing
+anything on their behalf; suggesting they add one is fine, doing it for them is
+not.
+
+Save output to `.figma-parity/render/<node>.png`.
 
 ## Interactive states
 

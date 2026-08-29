@@ -86,7 +86,7 @@ SDK reads the plugin at runtime. Edit the real directories, never the symlinks.
 
 ```
 .claude-plugin/plugin.json     makes this repo loadable as a plugin
-.mcp.json                      figma + playwright MCP servers
+.mcp.json                      figma MCP only (browser MCP deliberately not bundled)
 skills/figma-parity/
   SKILL.md                     the 5-phase workflow — the actual product
   references/rendering.md       per-stack render + screenshot recipes
@@ -156,6 +156,20 @@ with coordinates and a heatmap. The percentage is only the gate.
 - **`.env` is gitignored.** Never commit a key.
 
 ---
+
+## Privacy rules for this repo
+
+- **No real Figma file keys, ever.** A key names a real, often client-owned
+  document. `evals/cases.json` ships placeholders; contributors fill in their
+  own links locally. `evals/results/` is gitignored.
+- **No run artifacts.** No screenshots, ledgers, renders or diffs from anyone's
+  runs get committed here. They live in the user's own `.figma-parity/`.
+- **No bundled code-executing MCP servers.** `.mcp.json` declares the official
+  Figma HTTP endpoint only. A browser MCP spawns `npx`, which downloads and runs
+  code on the user's machine — that has to be their explicit choice.
+- **No elevated permissions.** Nothing here should ever need Full Disk Access,
+  accessibility access, or admin rights. If a change would, it is the wrong
+  change.
 
 ## Gotchas
 

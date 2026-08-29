@@ -49,6 +49,52 @@ An honest *"8 of 213 rows unresolved, here they are"* is a success. A false
 
 ---
 
+## What this does on your machine
+
+Worth stating plainly, because a design tool that reads your files deserves the
+scrutiny:
+
+**It needs no system permissions.** No Full Disk Access, no accessibility
+access, no admin rights, no login items - nothing that prompts your OS for
+elevated trust. If something asks you for that while using this, it is not this.
+
+**What it reads:** the Figma file you paste a link to, and the project folder
+you point it at. Nothing else.
+
+**What it writes:** a `.figma-parity/` folder inside *your* project, holding
+your ledger, your Figma exports, your renders and diffs. The skill adds it to
+your `.gitignore` on the first run, so your extractions never end up in your
+commits. Nothing is written outside that folder.
+
+**What talks to the network:** the official Figma MCP endpoint
+(`https://mcp.figma.com/mcp`) to read your design, and Claude itself. That is
+the whole list - no analytics, no telemetry, nothing reported back to this repo.
+
+**Nothing from anyone else's runs ships here.** No screenshots, no sample
+ledgers, no Figma file keys. `evals/cases.json` holds placeholders only - you
+fill in links to designs you own, and results land in `evals/results/`, which is
+gitignored. A Figma file key names a real, often client-owned document, so none
+belongs in a shared repo.
+
+**Optional extras, and what skipping them costs:**
+
+| Feature | Needs | If you skip it |
+|---|---|---|
+| Tree walk, ledger, completion gate | nothing | - |
+| Pixel diff | `pip install pillow numpy` | ledger-only mode, and it says so |
+| Screenshotting your built UI | a browser MCP you add yourself | ledger-only mode |
+| Headless HTTP service | your own Anthropic API key | ignore it; the plugin never uses it |
+
+The browser MCP is **deliberately not bundled**. Shipping it would silently
+register a server that downloads and executes code from npm on your machine the
+first time it runs. That is reasonable software, but not something a design
+plugin should arrange on your behalf without asking. If you want the pixel diff,
+add it yourself:
+
+```json
+{ "mcpServers": { "playwright": { "command": "npx", "args": ["@playwright/mcp@latest"] } } }
+```
+
 ## Install
 
 > **No Anthropic API key required.** The plugin runs on whatever Claude

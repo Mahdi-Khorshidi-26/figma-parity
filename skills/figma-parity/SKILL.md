@@ -37,7 +37,13 @@ a completion gate in code · write to disk immediately.
 - **A `⚠` or `✖` row requires a written reason.** A status with no reason is
   counted as still open; it is not an escape hatch.
 - **Never invent an icon.** Icons and images come back as asset URLs — download
-  the real bytes. Anything hand-drawn is wrong.
+  the real bytes into the project. Those URLs expire in ~7 days, so committed
+  code must never point at one. Anything hand-drawn is wrong.
+- **Every ledger row carries the node id it came from.** Coverage is computed
+  from those ids, not from the `Coverage:` line — a row without an id is a row
+  that counts for nothing.
+- **Quote every shell path.** Project directories contain spaces (and sometimes
+  a trailing space). `cd "$DIR"`, never `cd $DIR`.
 
 ---
 
@@ -63,6 +69,31 @@ holding `FAQs / FAQs / FAQs` at descending widths is one responsive page in
 three variants. Confirm with the user before implementing them as three pages,
 and record each as a row in the ledger's Responsive table.
 
+### Classify the node BEFORE planning anything
+
+Save the raw `get_metadata` response to `.figma-parity/tree.xml`, then:
+
+```bash
+python -c "import sys;sys.path.insert(0,'src');from figma_parity.tree import parse;t=parse('.figma-parity/tree.xml');print(t.classify());print(t.total,'nodes, depth',t.max_depth)"
+```
+
+| kind | what it means | what to do |
+|---|---|---|
+| `screen` | a viewport-width frame | implement it — the normal path |
+| `component` | a small subtree | implement just this component |
+| `breakpoint-set` | sibling frames, same name, descending widths | ONE responsive screen — confirm, then implement once with breakpoints |
+| `document` | far taller than wide — a spec sheet | **STOP and ask.** This is documentation *about* a UI, not the UI |
+
+**A `document` is the trap.** A 4169x31764px specification sheet contains prose
+describing a screen plus mockups of it. Implementing it literally produces a
+wall of text nobody wanted. When the classifier says `document`, ask the user
+whether they want (a) the UI the document describes, or (b) the document
+itself — and do not guess.
+
+Saving `tree.xml` is also what lets the gate derive coverage instead of
+believing the `Coverage:` line. Skip it and the run can only ever be
+self-reported.
+
 ### Resolve the render method
 
 Detect the stack and pick how the built UI will be screenshotted — see
@@ -72,8 +103,14 @@ acceptable; silently skipping verification is not.
 
 ### Create the working directory
 
-`.figma-parity/` inside the target project: `ledger.md`, `figma/`, `render/`,
-`diff/`. Add it to the project's `.gitignore`.
+`.figma-parity/` inside the target project: `ledger.md`, `tree.xml`, `figma/`,
+`render/`, `diff/`.
+
+**Add `.figma-parity/` to the project's `.gitignore` before writing anything
+into it.** These are the user's own extractions — their design exports, their
+screenshots, their ledger. They belong on their machine and must never end up
+in a commit, in this skill's repo, or anywhere shared. Write nothing outside
+this folder, and never write back into the plugin's own directory.
 
 ---
 
@@ -104,6 +141,23 @@ walk(node):
 ```
 
 `UNIT_BUDGET` ≈ **15–20k tokens**. Figma reports a per-node estimate; use it.
+
+**The ledger must exist before the second extraction.** After the first
+`get_design_context` returns, write its rows to `.figma-parity/ledger.md` and
+confirm the file is on disk before calling the tool again. A run that extracts
+five sections and then writes one ledger at the end has already lost whatever
+the context dropped along the way — which is the failure this phase exists to
+prevent.
+
+**Text layer names are their content.** Figma names a text node after the text
+it holds, so `get_metadata` alone yields every string in the design. Read them
+out of `tree.xml` rather than spending a `get_design_context` call per label.
+
+**Budget the descent.** Each `get_design_context` on a rich component costs
+several thousand tokens of context. Extract components, not instances; if a
+tree has more than ~15 unique components, extract the ones that carry the
+screen's substance first and record the rest as `☐` with a note, rather than
+running out of context halfway and losing everything.
 
 ### Two traps that make descent lose more than it saves
 
@@ -262,9 +316,9 @@ Coverage: nodes 47/47
 | Question | 4:1911 | 24 | ☑ |
 
 ### 4:1911 — Questions Column / Question Block / Question (INSTANCE)
-| prop | expected | status | note |
-|---|---|---|---|
-| font-size | 18px | ☐ | |
+| node | prop | expected | status | note |
+|---|---|---|---|---|
+| 4:1911 | font-size | 18px | ☐ | |
 | line-height | 24px | ☐ | |
 | color | var(--text-primary) #1A1A1A | ☐ | |
 | padding-y | 16px | ☐ | |
@@ -285,5 +339,12 @@ Coverage: nodes 47/47
 ## Unresolved
 ```
 
-Every row is one checkable value. `ledger.py` counts the boxes, and that count
-is the gate — which is why a vague row is worse than no row.
+Every row is one checkable value, and every row names its node. `ledger.py`
+counts the boxes; `tree.py` counts which of the design's nodes those ids
+actually account for. Both numbers are computed from disk, neither is taken
+from the model's word — which is why a row without a node id is worse than no
+row at all.
+
+**Status is always second-to-last, note always last.** The reason for a `⚠` or
+`✖` is read from the final column; put the status there instead and a perfectly
+good justification is invisible to the gate.
