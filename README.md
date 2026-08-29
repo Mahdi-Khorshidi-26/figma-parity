@@ -104,11 +104,22 @@ add it yourself:
 
 ### 1. Add the marketplace and install
 
+Inside a Claude Code session:
+
 ```
 /plugin marketplace add Mahdi-Khorshidi-26/figma-parity
 ```
 ```
 /plugin install figma-parity@figma-parity
+```
+
+Or from a terminal, if you prefer:
+
+```bash
+claude plugin marketplace add Mahdi-Khorshidi-26/figma-parity
+```
+```bash
+claude plugin install figma-parity@figma-parity
 ```
 
 Restart Claude Code, then:
@@ -120,13 +131,28 @@ Restart Claude Code, then:
 That's it. The skill, the slash command, and the auditor subagent are all
 active.
 
+### Keeping it up to date
+
+Installed plugins do **not** update themselves. To pull the latest version:
+
+```bash
+claude plugin marketplace update figma-parity
+```
+
+Worth doing before you report a bug — an old copy can look installed while its
+commands quietly fail.
+
 ### 2. What it needs from you
 
 | Requirement | Why | Without it |
 |---|---|---|
 | **Figma MCP** — the official `figma` plugin, signed in to your Figma account | reads the design | nothing works |
-| **Python 3.10+** with `pillow` and `numpy` | the pixel diff | falls back to ledger-only |
+| **Python 3.10+** | the tree walk, ledger and completion gate | those are stdlib-only, so a stock Python is enough |
+| `pillow` and `numpy` | the pixel diff *only* | falls back to ledger-only |
 | **A browser MCP** (e.g. `playwright`) | screenshots your built UI | falls back to ledger-only |
+
+Signing in to Figma is the one hard requirement. Everything else degrades
+gracefully and says so.
 
 ```bash
 pip install pillow numpy
