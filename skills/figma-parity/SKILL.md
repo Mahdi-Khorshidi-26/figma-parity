@@ -74,8 +74,12 @@ and record each as a row in the ledger's Responsive table.
 Save the raw `get_metadata` response to `.figma-parity/tree.xml`, then:
 
 ```bash
-python -c "import sys;sys.path.insert(0,'src');from figma_parity.tree import parse;t=parse('.figma-parity/tree.xml');print(t.classify());print(t.total,'nodes, depth',t.max_depth)"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/parity.py" classify .figma-parity/tree.xml
 ```
+
+`${CLAUDE_PLUGIN_ROOT}` is set for you and points at this plugin. Use it for
+every command below — you are running inside the *user's* project, so a bare
+`python -m figma_parity...` or a relative `src/` path will not resolve.
 
 | kind | what it means | what to do |
 |---|---|---|
@@ -231,7 +235,8 @@ Two additions:
 3. Run the diff:
 
 ```bash
-python -m figma_parity.diff .figma-parity/figma/<node>.png .figma-parity/render/<node>.png --out .figma-parity/diff
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/parity.py" diff \
+  .figma-parity/figma/<node>.png .figma-parity/render/<node>.png --out .figma-parity/diff
 ```
 
 Read the output as follows:
@@ -282,7 +287,7 @@ token was required, or a missing `aria-label`.
 Fix → re-render → re-diff → re-audit. Exit only when **all three** hold:
 
 ```bash
-python -c "import sys; sys.path.insert(0,'src'); from figma_parity.ledger import summarize; print(summarize('.figma-parity/ledger.md').report())"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/parity.py" coverage .figma-parity/ledger.md
 ```
 
 1. `ledger.summarize().complete` is true — no open rows, no unjustified

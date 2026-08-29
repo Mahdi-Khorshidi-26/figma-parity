@@ -3,13 +3,20 @@ name = "figma-parity"
 version = "0.1.0"
 description = "Agentic Figma-to-code service with a verified parity loop"
 requires-python = ">=3.10"
+# Base install covers the plugin: tree walk, ledger, gate and pixel diff.
+# The headless HTTP service is opt-in — a plugin user should never be made to
+# install an agent SDK and a web server to diff two PNGs.
 dependencies = [
+    "pillow>=10",
+    "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+server = [
     "claude-agent-sdk>=0.2.148",
     "fastapi>=0.115",
     "uvicorn>=0.30",
     "python-dotenv>=1.0",
-    "pillow>=10",
-    "numpy>=1.26",
 ]
 
 [build-system]
