@@ -76,15 +76,6 @@ fill in links to designs you own, and results land in `evals/results/`, which is
 gitignored. A Figma file key names a real, often client-owned document, so none
 belongs in a shared repo.
 
-**Optional extras, and what skipping them costs:**
-
-| Feature | Needs | If you skip it |
-|---|---|---|
-| Tree walk, ledger, completion gate | nothing | - |
-| Pixel diff | `pip install pillow numpy` | ledger-only mode, and it says so |
-| Screenshotting your built UI | a browser MCP you add yourself | ledger-only mode |
-| Headless HTTP service | your own Anthropic API key | ignore it; the plugin never uses it |
-
 The browser MCP is **deliberately not bundled**. Shipping it would silently
 register a server that downloads and executes code from npm on your machine the
 first time it runs. That is reasonable software, but not something a design

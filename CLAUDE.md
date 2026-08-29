@@ -87,21 +87,31 @@ SDK reads the plugin at runtime. Edit the real directories, never the symlinks.
 ```
 .claude-plugin/plugin.json     makes this repo loadable as a plugin
 .mcp.json                      figma MCP only (browser MCP deliberately not bundled)
+commands/figma-parity.md       the /figma-parity entry point
 skills/figma-parity/
   SKILL.md                     the 5-phase workflow — the actual product
-  references/rendering.md       per-stack render + screenshot recipes
-agents/figma-parity-auditor.md  independent auditor subagent
+  references/rendering.md      per-stack render + screenshot recipes
+agents/figma-parity-auditor.md independent auditor subagent
+scripts/parity.py              THE CLI the skill calls, via ${CLAUDE_PLUGIN_ROOT}
 src/figma_parity/
-  config.py                    env, path allowlist, tunable knobs
-  server.py                    FastAPI: /health, /runs, SSE events
-  runner.py                    Agent SDK orchestration + the gate
+  tree.py                      parses the design tree — derives coverage
   ledger.py                    parses ledger.md — enforces the gate
   diff.py                      two PNGs -> % diff, regions, heatmap
+  config.py   ┐                env, path allowlist, tunable knobs
+  runner.py   ├ server only    Agent SDK orchestration
+  server.py   ┘                FastAPI: /health, /runs, SSE events
+evals/                         server only: coverage measurement over real links
 tests/                         plain-assert tests, no framework
 ```
 
+**Two paths live here.** The plugin (skill + agent + command + `parity.py` +
+`tree`/`ledger`/`diff`) needs no API key and no server — that is what people
+install. The `[server]` extra (`config`/`runner`/`server`/`evals`) is the
+headless HTTP path and needs an Anthropic key. Keep them separable: nothing on
+the plugin path may import from the server path.
+
 Per-run artifacts are written into the **target** project at `.figma-parity/`:
-`ledger.md`, `figma/`, `render/`, `diff/`.
+`ledger.md`, `tree.xml`, `figma/`, `render/`, `diff/`.
 
 ---
 
