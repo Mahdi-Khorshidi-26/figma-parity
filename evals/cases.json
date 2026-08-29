@@ -1,0 +1,26 @@
+{
+  "_comment": "Eval cases for the parity loop. The question these answer is not 'did it look right' but 'did it find everything'. Fill expected_min_nodes from Figma's own layer tree once known — a case with null is recorded but not asserted.",
+  "cases": [
+    {
+      "id": "moes-faq-page",
+      "note": "Page node. Holds three sibling frames (Large/Medium/Small) — responsive variants of one page, not three pages.",
+      "figma_url": "https://www.figma.com/design/Jk3V1bpN1jEJMkCRAPLK2h/FAQ?node-id=0-1&m=dev",
+      "expected_min_nodes": null,
+      "expects_breakpoints": ["Large", "Medium", "Small"]
+    },
+    {
+      "id": "moes-faq-canvas",
+      "note": "Canvas/frame node. The historically lossy case — a single get_design_context here truncates.",
+      "figma_url": "https://www.figma.com/design/Jk3V1bpN1jEJMkCRAPLK2h/FAQ?node-id=1-2&m=dev",
+      "expected_min_nodes": null,
+      "expects_components": ["Menu / Desktop Header", "Question", "Contact Block"]
+    },
+    {
+      "id": "moes-faq-question-component",
+      "note": "Deep component node (~7 levels down, ~625 tokens). Baseline: this one already works by hand, so the loop must not regress it.",
+      "figma_url": "https://www.figma.com/design/Jk3V1bpN1jEJMkCRAPLK2h/FAQ?node-id=4-1911&m=dev",
+      "expected_min_nodes": null,
+      "expects_components": ["Question"]
+    }
+  ]
+}

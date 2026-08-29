@@ -1,0 +1,20 @@
+[project]
+name = "figma-parity"
+version = "0.1.0"
+description = "Agentic Figma-to-code service with a verified parity loop"
+requires-python = ">=3.10"
+dependencies = [
+    "claude-agent-sdk>=0.2.148",
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "python-dotenv>=1.0",
+    "pillow>=10",
+    "numpy>=1.26",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
