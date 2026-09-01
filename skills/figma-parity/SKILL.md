@@ -98,6 +98,27 @@ Saving `tree.xml` is also what lets the gate derive coverage instead of
 believing the `Coverage:` line. Skip it and the run can only ever be
 self-reported.
 
+### Read the comments on the design
+
+Figma comments — the pin threads people leave on the canvas — are **not part of
+the document tree**, so no MCP tool returns them and `get_design_context` never
+sees them. They are frequently where the real constraint lives: *"this is the
+disabled state"*, *"copy is placeholder"*, *"8px not 12, we changed this"*.
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/parity.py" comments <fileKey> .figma-parity/tree.xml
+```
+
+Append the output to the ledger. Every open comment is a `☐` row — someone
+typed it on purpose, so it is a requirement until you have either satisfied it
+or written down why it does not apply. Resolved threads are skipped; replies are
+folded into their parent rather than becoming separate rows.
+
+This needs a read-only `FIGMA_TOKEN` and is the **only** part of the skill that
+does. **Exit code 3 means no token was set, which is not a failure** — carry on,
+and say in your summary that comments were not read. Never let silence imply the
+design carried no discussion.
+
 ### Resolve the render method
 
 Detect the stack and pick how the built UI will be screenshotted — see
@@ -200,6 +221,28 @@ explicitly into the ledger's own tables from the component's variants and from
 any interactive prototype links: hover, focus, active, disabled, loading,
 error, empty, expanded/collapsed, selected. Each is a row.
 
+### Designer notes are requirements, not decoration
+
+**Dev Mode annotations** arrive inside `get_design_context` alongside the
+layout and colour data. They are where a designer puts what the geometry cannot
+express — *"this is disabled until the form validates"*, *"copy is placeholder,
+final text from legal"*, *"8px not 12, we changed this"*.
+
+**Record every annotation as its own `☐` row**, attached to the node it sits
+on. An annotation read and then not written down is lost exactly like any other
+property — and it is usually the most important thing on the node, because
+someone typed it deliberately.
+
+An annotation that is an instruction (*"use the new icon"*) becomes a row you
+tick when you have done it. An annotation that is a question or a decision the
+design has not settled (*"should this scroll?"*) becomes a `✖` row with the
+reason, and is surfaced to the user — do not silently pick an answer.
+
+**Figma comments** — the pin threads people leave on the canvas — are a
+different thing and do **not** come through the MCP. See Phase 0 for reading
+them; when they are unavailable, say so rather than implying the design carried
+no discussion.
+
 ### Screenshots
 
 `get_screenshot` per unit and for the root. It returns a short-lived URL plus
@@ -208,7 +251,28 @@ request base64 inline; it costs enormously more context for the same pixels.
 
 ---
 
-## Phase 2 — Implement
+## Phase 2 — Implement, or audit what is already there
+
+### Audit mode: the design is already built
+
+When the user says *"this screen exists, check the spacing"* rather than *"build
+this"*, **do not rebuild it.** Skip the implementation and go straight to
+measuring:
+
+1. Extract the design into the ledger exactly as Phase 1 describes — every
+   expected value still has to be written down before anything can be compared
+   against it.
+2. Find the existing implementation and make sure its elements carry
+   `data-node-id`. If they do not, add them: without that link nothing can be
+   measured, and adding an attribute changes no behaviour.
+3. Run the measure step in Phase 3 and report the mismatches.
+
+The output is a list of specific, numeric discrepancies — *"gap: design says
+12px, browser rendered 8px"* — not a rewrite. **Fix only what is on that list**,
+and ask before touching anything else; the user asked what is wrong, not for a
+new version of their screen.
+
+### Building from scratch
 
 Load the bundled **`figma-design-to-code`** skill and follow its translation
 rules — component and token reuse, hint priority, and the asset rules are
@@ -227,6 +291,53 @@ Two additions:
 ## Phase 3 — Render and measure
 
 *Countermeasure for failure mode 1.*
+
+### Measure the numbers before you compare the pictures
+
+**A pixel diff is the wrong instrument for spacing and sizing.** Change one
+container's padding by 4px and every border on the screen moves; the diff
+collapses that into a single enormous sparse region that says "something
+shifted" — which cannot answer *"is this gap 12 or 16?"*. Worse, in ledger-only
+mode there is no diff at all, so nothing measures the built UI and the only
+"check" left is the model comparing the design against code it wrote itself.
+That is a memory test, not a verification.
+
+The browser already knows the answer exactly. Ask it:
+
+1. **Put `data-node-id` on the elements you build.** Without it there is nothing
+   to line a ledger row up against. This is not decoration — it is what makes
+   the implementation measurable.
+
+2. **Dump the computed styles** by running this in the page and saving the
+   result to `.figma-parity/actual.json`:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/parity.py" snippet
+```
+
+3. **Compare the numbers:**
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/parity.py" measure \
+  .figma-parity/ledger.md .figma-parity/actual.json
+```
+
+You get arithmetic, not opinion:
+
+```
+FAIL  47/48 measured values match (1 mismatch)
+  4:1911
+    gap: design says 12px, browser rendered 8px   (ledger line 84)
+```
+
+No threshold, no antialiasing, no judgement — and it points at the exact ledger
+row. Hex and `rgb()` are compared as the same colour, `var(--s-600) 24px`
+compares as 24px, and sub-pixel rounding is not reported as a bug.
+
+**Fix what this reports before looking at any pixel diff.** A spacing error
+found here is also the cause of most of the diff's noise.
+
+### Then the pixel diff, for what numbers cannot see
 
 1. Render the implemented UI and screenshot it per `references/rendering.md`,
    at the Figma frame's width and `deviceScaleFactor: 2`.

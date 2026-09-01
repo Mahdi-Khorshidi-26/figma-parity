@@ -138,7 +138,8 @@ commands quietly fail.
 | **Figma MCP** — the official `figma` plugin, signed in to your Figma account | reads the design | nothing works |
 | **Python 3.10+** | the tree walk, ledger and completion gate | those are stdlib-only, so a stock Python is enough |
 | `pillow` and `numpy` | the pixel diff *only* | falls back to ledger-only |
-| **A browser MCP** (e.g. `playwright`) | screenshots your built UI | falls back to ledger-only |
+| **A browser MCP** (e.g. `playwright`) | measures your built UI and screenshots it | no spacing check, no pixel diff |
+| `FIGMA_TOKEN` (read-only, optional) | reads Figma **comments** | comments are skipped, and it says so |
 
 Signing in to Figma is the one hard requirement. Everything else degrades
 gracefully and says so.
@@ -152,6 +153,52 @@ implements against that list — you lose the pixel measurement, not the
 thoroughness. It tells you when it degrades rather than pretending.
 
 ---
+
+## Checking a screen you already built
+
+You do not have to rebuild anything. Point it at a design and say *"check the
+spacing on this"* — it extracts the design's values, reads the ones your browser
+actually rendered, and reports the differences as arithmetic:
+
+```
+FAIL  47/48 measured values match (1 mismatch)
+  4:1911
+    gap: design says 12px, browser rendered 8px   (ledger line 84)
+```
+
+**This is not the pixel diff, and that distinction matters.** Change one
+container's padding by 4px and every border on screen moves; a pixel diff
+collapses that into a single blob that says "something shifted". Computed styles
+answer the actual question — *is this gap 12 or 16* — exactly, with no
+threshold and no antialiasing noise.
+
+The one requirement is that your elements carry `data-node-id` attributes, which
+is what links a rendered element back to its design node. The skill adds them
+when it builds, and will add them to existing markup if you ask it to audit.
+
+Hex and `rgb()` compare as the same colour, `var(--s-600) 24px` compares as
+24px, and sub-pixel rounding is not reported as a bug.
+
+## Reading Figma comments
+
+Comments — the pin threads on the canvas — are **not part of the document
+tree**, so no Figma MCP tool can reach them. They are often where the real
+constraint lives: *"this is the disabled state"*, *"8px not 12, we changed
+this"*. Reading them needs a read-only Figma token, the only optional
+credential anywhere in this plugin:
+
+> Figma → Settings → Security → Personal access tokens → Generate,
+> scope `file_comments:read`
+
+```bash
+export FIGMA_TOKEN=figd_...
+```
+
+Every open comment becomes a `☐` row in the ledger — a requirement until you
+satisfy it or write down why it does not apply. Resolved threads are skipped and
+replies fold into their parent. Without the token everything else works
+unchanged and the run states that comments were not read, rather than leaving
+you to assume the design carried no discussion.
 
 ## Tuning
 

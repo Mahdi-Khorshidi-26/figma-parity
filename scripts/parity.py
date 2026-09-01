@@ -9,10 +9,19 @@ here may assume the current directory. Invoke it by absolute path:
 Commands:
     classify  <tree.xml>                 what kind of node this is
     coverage  <ledger.md> [tree.xml]     the completion gate's verdict
+    comments  <file-key> [tree.xml]      Figma pin threads as ledger rows
+    snippet                              JS to dump computed styles from the page
+    measure   <ledger.md> <actual.json>  exact spacing/sizing check
     diff      <figma.png> <render.png>   pixel diff  [--out DIR] [--tol N] [--threshold PCT]
 
-Only `diff` needs pillow and numpy. `classify` and `coverage` are pure stdlib,
-so the tree walk, the ledger and the gate all work with no installs at all.
+Use `measure` for spacing and sizing, not `diff`. A 4px padding change moves
+every border on screen and the pixel diff reports one useless blob; `measure`
+reports "gap: design says 12px, browser rendered 8px".
+
+Only `diff` needs pillow and numpy. `classify`, `coverage` and `comments` are
+pure stdlib, so the tree walk, the ledger and the gate all work with no installs
+at all. `comments` additionally needs a read-only FIGMA_TOKEN, and exits 3 with
+setup instructions when there isn't one.
 """
 
 from __future__ import annotations
@@ -60,13 +69,70 @@ def _coverage(argv: list[str]) -> int:
     return 0 if summary.complete else 1
 
 
+def _comments(argv: list[str]) -> int:
+    from figma_parity.comments import NO_TOKEN, fetch, to_markdown
+
+    if not argv:
+        print("usage: parity.py comments <file-key> [tree.xml]", file=sys.stderr)
+        return 2
+
+    node_ids: set[str] | None = None
+    if len(argv) > 1 and Path(argv[1]).exists():
+        from figma_parity.tree import parse
+
+        node_ids = parse(argv[1]).node_ids
+
+    try:
+        found = fetch(argv[0])
+    except PermissionError as exc:  # no token: not configured, not broken
+        print(str(exc), file=sys.stderr)
+        return NO_TOKEN
+    except RuntimeError as exc:
+        print(f"figma-parity: {exc}", file=sys.stderr)
+        return 1
+
+    print(to_markdown(found, node_ids))
+    return 0
+
+
+def _snippet(argv: list[str]) -> int:
+    from figma_parity.measure import browser_snippet
+
+    print(browser_snippet())
+    return 0
+
+
+def _measure(argv: list[str]) -> int:
+    from figma_parity.measure import compare
+
+    if len(argv) < 2:
+        print(
+            "usage: parity.py measure <ledger.md> <actual.json>\n\n"
+            "Get actual.json by running `parity.py snippet` in the page with your\n"
+            "browser tooling and saving the result. Elements must carry\n"
+            "data-node-id attributes, or there is nothing to line the ledger up with.",
+            file=sys.stderr,
+        )
+        return 2
+    result = compare(argv[0], argv[1])
+    print(result.report())
+    return 0 if result.passed else 1
+
+
 def _diff(argv: list[str]) -> int:
     from figma_parity.diff import main as diff_main
 
     return diff_main(argv)
 
 
-COMMANDS = {"classify": _classify, "coverage": _coverage, "diff": _diff}
+COMMANDS = {
+    "classify": _classify,
+    "coverage": _coverage,
+    "comments": _comments,
+    "snippet": _snippet,
+    "measure": _measure,
+    "diff": _diff,
+}
 
 
 def main(argv: list[str] | None = None) -> int:
