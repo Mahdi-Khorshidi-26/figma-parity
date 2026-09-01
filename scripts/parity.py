@@ -8,6 +8,7 @@ here may assume the current directory. Invoke it by absolute path:
 
 Commands:
     classify  <tree.xml>                 what kind of node this is
+    mode      <tree.xml> <project-dir>    build / audit / reconcile
     coverage  <ledger.md> [tree.xml]     the completion gate's verdict
     comments  <file-key> [tree.xml]      Figma pin threads as ledger rows
     snippet                              JS to dump computed styles from the page
@@ -55,6 +56,16 @@ def _classify(argv: list[str]) -> int:
             "\nSTOP: this is documentation *about* a UI, not the UI. Ask which the "
             "user wants built before implementing anything."
         )
+    return 0
+
+
+def _mode(argv: list[str]) -> int:
+    from figma_parity.mode import detect
+
+    if len(argv) < 2:
+        print("usage: parity.py mode <tree.xml> <project-dir>", file=sys.stderr)
+        return 2
+    print(detect(argv[1], argv[0]).report())
     return 0
 
 
@@ -127,6 +138,7 @@ def _diff(argv: list[str]) -> int:
 
 COMMANDS = {
     "classify": _classify,
+    "mode": _mode,
     "coverage": _coverage,
     "comments": _comments,
     "snippet": _snippet,

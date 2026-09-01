@@ -202,17 +202,71 @@ its main component — when it does, that difference is a row.
 ### What to extract per node
 
 Every leaf property becomes its own row. Not "typography: heading" — one row
-per value, because a row is what gets ticked:
+per value, because a row is what gets ticked. Work this list; a property you do
+not look for is a property you will not notice is missing.
 
-- Text: font-family, size, weight, line-height, letter-spacing, color, align, transform, decoration
-- Box: width, height, padding (each side), margin, border-radius (each corner), border, shadow, opacity, overflow
-- Layout: direction, gap, justify, align, wrap, sizing (hug/fill/fixed), position, z-order
-- Fill/stroke: color or gradient, plus the token name where one exists
-- Asset: source URL, intrinsic size, rendered size
+**Text** — font-family, font-size, font-weight, line-height, letter-spacing,
+color, text-align, vertical-align, text-transform, text-decoration,
+font-style, truncation / max-lines, white-space, list style, and the literal
+copy itself (retyped text is a defect).
 
-Also run `get_variable_defs` **once** for the file's token map, and prefer the
-token name over the raw hex in the `expected` column — record both:
-`var(--text-primary) #1A1A1A`.
+**Box** — width, height, min/max width and height, aspect ratio, padding on
+each of the four sides *individually*, margin, border-radius per corner,
+corner smoothing, overflow / clip-content, opacity, rotation, z-order.
+
+**Layout** — auto-layout direction, gap (row and column separately), spacing
+mode (packed vs space-between), padding, alignment on both axes, wrap, sizing
+per axis (hug / fill / fixed), and for absolutely positioned children their
+constraints (pin left/right/top/bottom, centre, scale). **Constraints are the
+usual reason a layout is right at one width and wrong at another.**
+
+**Fill** — solid colour, or for a gradient: type (linear/radial/angular/
+diamond), every stop with its position and colour, and the angle. For an image
+fill: the scale mode (fill / fit / crop / tile), focal point, and rotation.
+Multiple stacked fills each get a row.
+
+**Stroke** — colour, width per side if they differ, alignment
+(inside/centre/outside — this changes the box's rendered size), dash pattern,
+and cap/join.
+
+**Effects** — drop shadow and inner shadow (x, y, blur, spread, colour, and
+whether it is behind translucent fills), layer blur, background blur. Each
+effect is its own row; a stack of three shadows is three rows.
+
+**Blend mode** — on the layer and on individual fills. Easy to miss and
+impossible to recover from a screenshot.
+
+**Component** — for an instance: which main component, every variant property
+and its value, and any override that differs from the main component. Figma
+flags when an instance's layout differs from its main — that difference is
+always a row.
+
+**Asset** — the exported source, intrinsic size, rendered size, and the export
+scale.
+
+Run `get_variable_defs` **once** for the file's token map, and prefer the token
+name over the raw value in the `expected` column — record both:
+`var(--text-primary) #1A1A1A`. A raw hex where a token exists is a defect even
+when the pixels match, because the next theme change will break it.
+
+### Sources you must consult, not just get_design_context
+
+`get_design_context` is the main source but it is not the only one, and the
+things it omits are exactly the ones that get lost:
+
+| Source | What it adds | When |
+|---|---|---|
+| `get_code_connect_map` | the codebase component a Figma component is **already mapped to** | **First, before writing any component.** A mapped component must be used, not reimplemented — this outranks every other hint |
+| `get_variable_defs` | the token map | once per file |
+| `get_motion_context` | transitions, easing, duration, animated properties | whenever a node is animated or `get_design_context` says to call it |
+| `download_assets` | the real exported bytes for images and SVGs | for every icon and image — never hand-author vector data |
+| `search_design_system` / `get_libraries` | existing library components to reuse | before creating anything that looks like a shared component |
+| `get_shader_fill` / `get_shader_effect` | shader-based fills and effects | when `list_shader_fills` / `list_shader_effects` report any |
+
+**Motion is a first-class requirement, not a flourish.** A design with a 200ms
+ease-out on a hover has that written down somewhere; if you do not extract it,
+it is silently gone and no diff will ever tell you. Record duration, easing,
+delay, and the properties that animate — each as its own row.
 
 ### States and breakpoints are invisible to a pixel diff
 
@@ -251,28 +305,58 @@ request base64 inline; it costs enormously more context for the same pixels.
 
 ---
 
-## Phase 2 — Implement, or audit what is already there
+## Phase 2 — Build, audit, or reconcile
 
-### Audit mode: the design is already built
+**Do not assume you are starting from nothing.** Ask the project:
 
-When the user says *"this screen exists, check the spacing"* rather than *"build
-this"*, **do not rebuild it.** Skip the implementation and go straight to
-measuring:
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/parity.py" mode .figma-parity/tree.xml .
+```
 
-1. Extract the design into the ledger exactly as Phase 1 describes — every
-   expected value still has to be written down before anything can be compared
-   against it.
-2. Find the existing implementation and make sure its elements carry
-   `data-node-id`. If they do not, add them: without that link nothing can be
-   measured, and adding an attribute changes no behaviour.
-3. Run the measure step in Phase 3 and report the mismatches.
+It reports which of the design's nodes already appear in the code and returns
+one of three modes. Getting this wrong is expensive in both directions:
+rebuilding a finished screen destroys working code, and auditing a half-built
+one silently skips everything that was never written.
 
-The output is a list of specific, numeric discrepancies — *"gap: design says
-12px, browser rendered 8px"* — not a rewrite. **Fix only what is on that list**,
-and ask before touching anything else; the user asked what is wrong, not for a
-new version of their screen.
+### `build` — nothing is there yet
 
-### Building from scratch
+Implement from scratch, following the translation rules below.
+
+**If the report says low confidence, stop and ask.** No `data-node-id` anywhere
+means either the screen genuinely does not exist, or it was built by hand
+without the attribute — and those are indistinguishable from the outside.
+Rebuilding over someone's working screen because you could not see it is the
+worst outcome available here.
+
+### `audit` — it is already built
+
+**Do not rebuild it.** Extract the design into the ledger exactly as Phase 1
+describes — every expected value still has to be written down before anything
+can be compared against it — then:
+
+1. Make sure the existing elements carry `data-node-id`. Add it where missing;
+   it changes no behaviour and it is the only link between a rendered element
+   and its design node.
+2. Run the measure step in Phase 3.
+3. Report the numeric mismatches and fix **only** those.
+
+The user asked what is wrong, not for a new version of their screen. Ask before
+touching anything not on the list.
+
+### `reconcile` — some of it exists
+
+The common case, and the one that needs the most care. Do both jobs and keep
+them apart:
+
+- **Audit what exists.** Measure it, report drift, fix what is measurably wrong.
+- **Build only what is missing.** The nodes absent from the report are the work.
+- **Do not rewrite working code** because it is not how you would have written
+  it. A component that measures correctly is correct.
+
+Report the two halves separately in your summary, so the user can see what was
+changed versus what was added.
+
+### Translation rules (all three modes)
 
 Load the bundled **`figma-design-to-code`** skill and follow its translation
 rules — component and token reuse, hint priority, and the asset rules are

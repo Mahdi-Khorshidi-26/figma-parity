@@ -154,6 +154,24 @@ thoroughness. It tells you when it degrades rather than pretending.
 
 ---
 
+## It works out what kind of job this is
+
+You do not have to say whether the screen exists. It checks, and picks one of
+three:
+
+| | when | what it does |
+|---|---|---|
+| **build** | none of the design appears in your code | implements from scratch |
+| **audit** | it is already there | measures it, reports what drifted, changes nothing else |
+| **reconcile** | some of it exists | audits what is there, builds only what is missing, leaves working code alone |
+
+Getting this wrong is expensive in both directions — rebuilding a finished
+screen throws away working code, and auditing a half-built one silently skips
+everything that was never written. So it looks rather than assumes, and when the
+evidence is weak (nothing in your code carries a `data-node-id`, which looks the
+same whether the screen is unbuilt or just hand-written) it says so and asks
+instead of guessing.
+
 ## Checking a screen you already built
 
 You do not have to rebuild anything. Point it at a design and say *"check the
