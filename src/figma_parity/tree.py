@@ -160,17 +160,46 @@ class Tree:
                 f"specification sheet or long scrolling document, not a screen",
             )
 
-        frame_kids = [n for n in top if n.tag in ("frame", "instance")]
+        # Only frames. A repeated component instance — a header appearing twice
+        # inside one screen — is not a page variant, and counting instances here
+        # reads an ordinary screen as a set of states.
+        frame_kids = [n for n in top if n.tag == "frame"]
+        widths = sorted((n.width for n in frame_kids), reverse=True)
+        widest = widths[0] if widths else 0.0
+        narrowest = widths[-1] if widths else 0.0
+
         if len(frame_kids) >= 2:
-            widths = sorted((n.width for n in frame_kids), reverse=True)
             names = {n.name for n in frame_kids}
-            if len(names) <= 2 and widths[0] > 0 and widths[-1] / widths[0] < 0.75:
+
+            if len(names) <= 2 and widest > 0 and narrowest / widest < 0.75:
                 return (
                     "breakpoint-set",
                     f"{len(frame_kids)} sibling frames sharing a name at descending widths "
                     f"({', '.join(f'{x:.0f}' for x in widths)}) — responsive variants of one "
                     f"screen, not separate screens",
                 )
+
+            # Same width, several of them: these are states of one screen — a
+            # carousel on a different slide, a form mid-validation — not
+            # breakpoints and not separate pages. Implementing them as separate
+            # screens produces N copies of the same page.
+            if widest > 0 and narrowest / widest >= 0.95 and widest >= _SCREEN_MIN_WIDTH:
+                return (
+                    "variant-set",
+                    f"{len(frame_kids)} sibling frames all {widest:.0f} wide — the same "
+                    f"screen in different states, not breakpoints and not separate pages. "
+                    f"Ask which state is the default and treat the others as states",
+                )
+
+        # A section is a container Figma uses to group whole pages. Its own
+        # dimensions describe the grouping, not a viewport, so the aspect and
+        # width rules below would read it as an enormous screen.
+        if root.tag == "section" or (frame_kids and root.width > widest * 1.5):
+            return (
+                "section",
+                f"a {root.tag} {w:.0f}x{h:.0f} holding {len(frame_kids)} frame(s) — a group "
+                f"of screens rather than one. Ask which to implement before descending",
+            )
 
         if w >= _SCREEN_MIN_WIDTH:
             return "screen", f"{self.total} nodes at {w:.0f}x{h:.0f} — viewport-width frame"

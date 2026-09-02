@@ -7,6 +7,7 @@ here may assume the current directory. Invoke it by absolute path:
     python3 "${CLAUDE_PLUGIN_ROOT}/scripts/parity.py" <command> ...
 
 Commands:
+    fetch-tree <file-key> <node-id>      tree via REST, when get_metadata fails
     classify  <tree.xml>                 what kind of node this is
     mode      <tree.xml> <project-dir>    build / audit / reconcile
     coverage  <ledger.md> [tree.xml]     the completion gate's verdict
@@ -56,6 +57,29 @@ def _classify(argv: list[str]) -> int:
             "\nSTOP: this is documentation *about* a UI, not the UI. Ask which the "
             "user wants built before implementing anything."
         )
+    return 0
+
+
+def _fetch_tree(argv: list[str]) -> int:
+    from figma_parity.rest import NO_TOKEN, fetch_tree_xml
+
+    if len(argv) < 2:
+        print(
+            "usage: parity.py fetch-tree <file-key> <node-id> [depth]\n\n"
+            "Use this when get_metadata fails or truncates. It returns the same tree\n"
+            "through Figma's REST API, which has no streaming layer to cut short.",
+            file=sys.stderr,
+        )
+        return 2
+    depth = int(argv[2]) if len(argv) > 2 else None
+    try:
+        print(fetch_tree_xml(argv[0], argv[1], depth=depth), end="")
+    except PermissionError as exc:
+        print(str(exc), file=sys.stderr)
+        return NO_TOKEN
+    except RuntimeError as exc:
+        print(f"figma-parity: {exc}", file=sys.stderr)
+        return 1
     return 0
 
 
@@ -137,6 +161,7 @@ def _diff(argv: list[str]) -> int:
 
 
 COMMANDS = {
+    "fetch-tree": _fetch_tree,
     "classify": _classify,
     "mode": _mode,
     "coverage": _coverage,

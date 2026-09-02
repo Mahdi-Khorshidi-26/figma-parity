@@ -85,8 +85,29 @@ every command below — you are running inside the *user's* project, so a bare
 |---|---|---|
 | `screen` | a viewport-width frame | implement it — the normal path |
 | `component` | a small subtree | implement just this component |
-| `breakpoint-set` | sibling frames, same name, descending widths | ONE responsive screen — confirm, then implement once with breakpoints |
+| `breakpoint-set` | sibling frames, same name, **descending** widths | ONE responsive screen — confirm, then implement once with breakpoints |
+| `variant-set` | sibling frames, **same** width | ONE screen in several states (a carousel on a different slide, a form mid-validation). **Ask which is the default**; the rest are states. Building them as separate pages produces N copies of the same page |
+| `section` | a container grouping whole pages | **STOP and ask** which page to implement |
 | `document` | far taller than wide — a spec sheet | **STOP and ask.** This is documentation *about* a UI, not the UI |
+
+### When `get_metadata` fails
+
+It does fail, and not always transiently: a large node can truncate the response
+at the same offset on every retry while a sibling of similar size returns
+cleanly. Retrying is then pointless, and you cannot descend without the child
+ids — they are non-sequential, so guessing is not an option either.
+
+**Do not stop there, and do not hand-write the screen from a screenshot.** Fetch
+the same tree the other way:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/parity.py" fetch-tree <fileKey> <nodeId> > .figma-parity/tree.xml
+```
+
+This uses Figma's REST API, which has no streaming layer to cut short, and emits
+the identical format — so classify, mode and coverage all work unchanged. It
+needs the read-only `FIGMA_TOKEN`; **exit code 3 means no token**, in which case
+ask the user either to set one or to paste the child frame links directly.
 
 **A `document` is the trap.** A 4169x31764px specification sheet contains prose
 describing a screen plus mockups of it. Implementing it literally produces a
